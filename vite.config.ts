@@ -4,7 +4,7 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: "/smartattend-ai/", // GitHub Pages base path
+  base: "/smart_attendance1/", // GitHub Pages base path
   server: {
     host: "::",
     port: 8080,
