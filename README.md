@@ -180,17 +180,36 @@ const registerFace = async (studentId: string, image: HTMLCanvasElement) => {
 
 ## 🚀 Deployment
 
-### Build for Production
-```bash
-npm run build
-```
+### GitHub Pages (Recommended)
 
-### Deploy to Static Hosting
-The built files in `dist/` can be deployed to any static hosting service:
-- Vercel
-- Netlify
-- GitHub Pages
-- AWS S3
+1. **Quick Setup**:
+   ```bash
+   # Windows
+   setup-github.bat
+   
+   # Linux/Mac
+   chmod +x setup-github.sh
+   ./setup-github.sh
+   ```
+
+2. **Manual Setup**:
+   ```bash
+   # Build for GitHub Pages
+   npm run build:github
+   
+   # Deploy
+   npm run deploy
+   ```
+
+3. **Enable GitHub Pages**:
+   - Go to repository Settings → Pages
+   - Source: GitHub Actions
+   - Your site: `https://YOUR_USERNAME.github.io/smartattend-ai/`
+
+### Other Hosting Options
+- **Vercel**: `vercel --prod`
+- **Netlify**: Drag `dist/` folder to Netlify
+- **AWS S3**: Upload `dist/` contents to S3 bucket
 
 ## 🤝 Contributing
 

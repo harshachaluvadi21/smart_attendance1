@@ -31,6 +31,7 @@ const AttendanceSession = ({ onStudentDetected, detectedStudents }: AttendanceSe
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [manualDetectionEnabled, setManualDetectionEnabled] = useState(true);
+  const [detectionIntervalRef, setDetectionIntervalRef] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Initialize demo data
@@ -78,11 +79,28 @@ const AttendanceSession = ({ onStudentDetected, detectedStudents }: AttendanceSe
 
     initializeModels();
 
-    // Real face recognition detection
+    return () => {
+      clearInterval(timer);
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  // Separate effect to handle detection interval based on scanning state
+  useEffect(() => {
+    if (!isScanning || !isModelLoaded) {
+      return;
+    }
+
+    console.log('🟢 Creating new detection interval...');
+    
     const detectionInterval = setInterval(async () => {
       if (!isModelLoaded || !isScanning || !videoRef.current || !canvasRef.current) {
         return;
       }
+      
+      console.log('🟢 Detection interval: Running detection...');
 
       try {
         // Capture frame from video
@@ -145,34 +163,28 @@ const AttendanceSession = ({ onStudentDetected, detectedStudents }: AttendanceSe
                 onStudentDetected({ 
                   rollNumber: student.rollNumber, 
                   name: student.name, 
-                  email: student.email 
+                  confidence: recognition.confidence,
+                  timestamp: new Date().toISOString()
                 });
-              } else {
-                const errorLog = `❌ Student not found in database: ${recognition.studentId}`;
-                console.log(errorLog);
-                setDebugLogs(prev => [...prev.slice(-4), errorLog]);
               }
-            } else {
-              const lowConfLog = `⚠️ Recognition confidence too low: ${recognition.confidence.toFixed(3)} < 0.5`;
-              console.log(lowConfLog);
-              setDebugLogs(prev => [...prev.slice(-4), lowConfLog]);
             }
           }
         }
       } catch (error) {
         console.error("Error during face recognition:", error);
       }
-    }, 1000); // Increased frequency for faster detection // Check every 2 seconds
+    }, 1000);
+    
+    // Store interval reference
+    setDetectionIntervalRef(detectionInterval);
 
     return () => {
-      clearInterval(timer);
-      clearInterval(detectionInterval);
-      clearInterval(modelCheckInterval);
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (detectionInterval) {
+        clearInterval(detectionInterval);
+        console.log('🔴 Detection interval cleaned up');
       }
     };
-  }, []);
+  }, [isScanning, isModelLoaded]);
 
   const startCamera = async () => {
     try {
@@ -258,12 +270,14 @@ const AttendanceSession = ({ onStudentDetected, detectedStudents }: AttendanceSe
                   <div className={`absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 ${!isScanning ? 'opacity-50' : ''}`} />
                   <div className={`absolute inset-4 border border-dashed border-primary/30 rounded-lg ${!isScanning ? 'border-red-500' : ''}`} />
                   
-                  {/* Paused indicator */}
-                  {!isScanning && (
-                    <div className="absolute top-4 right-4 bg-red-600 text-white px-3 py-1 rounded-lg text-sm font-medium">
-                      ⏸️ Detection Paused
-                    </div>
-                  )}
+                  {/* Status indicator */}
+                  <div className={`absolute top-4 right-4 px-3 py-1 rounded-lg text-sm font-medium ${
+                    isScanning 
+                      ? 'bg-green-600 text-white' 
+                      : 'bg-red-600 text-white'
+                  }`}>
+                    {isScanning ? '🟢 Scanning Active' : '⏸️ Detection Paused'}
+                  </div>
                   
                   {/* Control buttons */}
                   <div className="absolute bottom-4 left-4 flex space-x-2">
@@ -289,8 +303,20 @@ const AttendanceSession = ({ onStudentDetected, detectedStudents }: AttendanceSe
                     
                     <button
                       onClick={() => {
-                        setIsScanning(!isScanning);
-                        setDebugLogs(prev => [...prev.slice(-4), isScanning ? '⏸️ Detection paused' : '▶️ Detection resumed']);
+                        const newScanningState = !isScanning;
+                        setIsScanning(newScanningState);
+                        
+                        // Force clear any existing interval
+                        if (detectionIntervalRef) {
+                          clearInterval(detectionIntervalRef);
+                          setDetectionIntervalRef(null);
+                        }
+                        
+                        setDebugLogs(prev => [...prev.slice(-4), newScanningState ? '▶️ Detection started' : '⏸️ Detection stopped']);
+                        console.log(`Detection ${newScanningState ? 'started' : 'stopped'}`);
+                        
+                        // If starting, the useEffect will create a new interval
+                        // If stopping, we've already cleared the interval above
                       }}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors z-10 ${
                         isScanning 
